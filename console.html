@@ -8,10 +8,26 @@
 <body>
   Upload a File
   <br>
-  <form action='/uploaded' method="post" enctype="multipart/form-data">
-    <input type="file" id="file" name="filetoupload">
-    <br>
+  <form action='/upload' method="post" enctype="multipart/form-data">
     <input type="submit" value="Upload">
+  </form>
+  <br>
+  View files to download
+  <br>
+  <form action='/files' method="post" enctype="multipart/form-data">
+    <input type="submit" value="Files">
+  </form>
+  <br>
+  Create a group
+  <br>
+  <form action='/create' method="post" enctype="multipart/form-data">
+    <input type="submit" value="Create Group">
+  </form>
+  <br>
+  Invite user to group
+  <br>
+  <form action='/invite' method="post" enctype="multipart/form-data">
+    <input type="submit" value="Invite">
   </form>
 
 </body>
