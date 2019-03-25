@@ -4,6 +4,7 @@ var app = express();
 app.use(bodyParser.urlencoded({extended: false}));
 var fs = require('fs');
 var url = require('url');
+var html = require('html');
 var firebase = require('firebase-admin')
 var formidable = require('formidable');
 var cp = require('child_process');
@@ -45,23 +46,6 @@ const homeFolder = ["1pMAGP9xJRtEDFAImABbw9RwPoVoPQyVl"]
    }
  });
 
-  /*
-  drive.files.list({
-    auth: jwtClient,
-    includeRemoved: false,
-    spaces: 'drive',
-    fileId: "1pMAGP9xJRtEDFAImABbw9RwPoVoPQyVl",
-    fields: 'nextPageToken, files(id, name, parents, mimeType, modifiedTime)',
-    q: `'${"1pMAGP9xJRtEDFAImABbw9RwPoVoPQyVl"}' in parents`
-  }, (listErr, resp) => {
-      if (listErr) {
-        console.log(listErr);
-        return;
-      }
-      resp.data.files.forEach((file) => {
-        console.log(`${file.name} (${file.mimeType})`);
-      });
-  });*/
 //});
 
 var signedin = 0;
@@ -70,12 +54,13 @@ var user = "";
 var pass = "";
 
 var groupchoice = "";
+var groupchoice2 = "";
 
 const userRef = database.ref('/users/');
 const groupRef = database.ref('/groups/');
 
 app.get('/', function (req, res) {
-    fs.readFile('home.html', function(err, data){
+    fs.readFile('./pages/home.html', function(err, data){
       res.writeHead(200, {'Content-Type': 'text/html'});
       res.write(data);
       return res.end();
@@ -89,7 +74,7 @@ app.post('/newuser', function(req, res) {
 
     userRef.once('value', function(snapshot) {
       if(snapshot.hasChild(user)){
-        fs.readFile('home.html', function(err, data){
+        fs.readFile('./pages/home.html', function(err, data){
           res.writeHead(200, {'Content-Type': 'text/html'});
           res.write(data);
           return res.end();
@@ -129,7 +114,7 @@ app.post('/newuser', function(req, res) {
           makepub.stdin.end();
         });
 
-      fs.readFile('newuser.html', function(err, data){
+      fs.readFile('./pages/newuser.html', function(err, data){
         res.writeHead(200, {'Content-Type': 'text/html'});
         res.write(data);
         return res.end();
@@ -150,14 +135,14 @@ app.post('/olduser', function(req, res) {
       var u = usrn.localeCompare(user);
       var p = pswd.localeCompare(pass);
       if (u != 0 || p != 0){
-        fs.readFile('home.html', function(err, data){
+        fs.readFile('./pages/home.html', function(err, data){
           res.writeHead(200, {'Content-Type': 'text/html'});
           res.write(data);
           return res.end();
         })
       }
       else{
-        fs.readFile('console.html', function(err, data){
+        fs.readFile('./pages/console.html', function(err, data){
           res.writeHead(200, {'Content-Type': 'text/html'});
           res.write(data);
           return res.end();
@@ -165,7 +150,7 @@ app.post('/olduser', function(req, res) {
       }
     }
     else{
-      fs.readFile('home.html', function(err, data){
+      fs.readFile('./pages/home.html', function(err, data){
         res.writeHead(200, {'Content-Type': 'text/html'});
         res.write(data);
         return res.end();
@@ -179,7 +164,7 @@ app.post('/olduser', function(req, res) {
 
 app.post('/console', function(req, res){
 
-  fs.readFile('console.html', function(err, data){
+  fs.readFile('./pages/console.html', function(err, data){
     res.writeHead(200, {'Content-Type': 'text/html'});
     res.write(data);
     return res.end();
@@ -189,7 +174,7 @@ app.post('/console', function(req, res){
 
 app.post('/uploaded', function(req, res){
   //console.log(groupchoice);
-  fs.readFile('console.html', function(err, data){
+  fs.readFile('./pages/console.html', function(err, data){
     res.writeHead(200, {'Content-Type': 'text/html'});
     res.write(data);
     return res.end();
@@ -233,29 +218,20 @@ app.post('/uploaded', function(req, res){
               }
               else{
                 var encryptedboi = cryptojs.AES.encrypt(contents, mykey);
-                uploadFile(files.filetoupload.name, encryptedboi.toString());
+                var decryptedboi = cryptojs.AES.decrypt(encryptedboi.toString(), mykey);
+                console.log("decryptedboi = " + decryptedboi.toString(cryptojs.enc.Utf8));
+                uploadFile(files.filetoupload.name, encryptedboi.toString(), groupchoice);
               }
-
             })
           }
         });
       }
     });
-
-    //uploadFile(files.filetoupload.name, newpath);
-
   })
-
-
-  /*
-  fs.readFile(newpath, 'utf-8', function(err, contents) {
-
-  })*/
-
 });
 
 app.post('/choose', function(req, res) {
-  fs.readFile('choosegroup.html', function(err, data){
+  fs.readFile('./pages/choosegroup.html', function(err, data){
     res.writeHead(200, {'Content-Type': 'text/html'});
     res.write(data);
     return res.end();
@@ -267,7 +243,7 @@ app.post('/upload', function(req, res) {
 
   groupchoice = req.body.groupname;
 
-  fs.readFile('upload.html', function(err, data){
+  fs.readFile('./pages/upload.html', function(err, data){
     res.writeHead(200, {'Content-Type': 'text/html'});
     res.write(data);
     return res.end();
@@ -275,7 +251,7 @@ app.post('/upload', function(req, res) {
 });
 
 app.post('/create', function(req, res) {
-  fs.readFile('create.html', function(err, data){
+  fs.readFile('./pages/create.html', function(err, data){
     res.writeHead(200, {'Content-Type': 'text/html'});
     res.write(data);
     return res.end();
@@ -286,9 +262,11 @@ app.post('/created', function(req, res) {
   var group = req.body.groupname;
   console.log(group);
 
+  createFolder(group);
+
   groupRef.once('value', function(snapshot) {
     if(snapshot.hasChild(group)){
-      fs.readFile('unsuccessful.html', function(err, data){
+      fs.readFile('./pages/unsuccessful.html', function(err, data){
         res.writeHead(200, {'Content-Type': 'text/html'});
         res.write(data);
         return res.end();
@@ -306,7 +284,7 @@ app.post('/created', function(req, res) {
           database.ref('/groups/' + group + '/users/' + user).set({
             symmetrickey: symmEnc
           });
-          fs.readFile('console.html', function(err, data){
+          fs.readFile('./pages/console.html', function(err, data){
             res.writeHead(200, {'Content-Type': 'text/html'});
             res.write(data);
             return res.end();
@@ -316,6 +294,215 @@ app.post('/created', function(req, res) {
     }
   });
 
+});
+
+
+app.post('/files', function(req, res) {
+
+  groupchoice2 = req.body.groupname;
+
+  drive.files.list({
+    auth: jwtClient,
+    includeRemoved: false,
+    spaces: 'drive',
+    fileId: homeFolder,
+    fields: 'nextPageToken, files(id, name, parents, mimeType, modifiedTime)',
+    q: `'${homeFolder}' in parents`
+  }, (listErr, resp) => {
+      if (listErr) {
+        console.log(listErr);
+        return;
+      }
+      resp.data.files.forEach((file) => {
+        var b = groupchoice2.localeCompare(file.name);
+        if(b==0){
+          console.log("Folder = " + file.name);
+          var folderId = file.id;
+          drive.files.list({
+            auth: jwtClient,
+            includeRemoved: false,
+            spaces: 'drive',
+            fileId: [folderId],
+            fields: 'nextPageToken, files(id, name, parents, mimeType, modifiedTime)',
+            q: `'${[folderId]}' in parents`
+          }, (listErr, resp) => {
+              if (listErr) {
+                console.log(listErr);
+                return;
+              }
+              var filenames = [];
+              resp.data.files.forEach((file) => {
+                filenames.push(file.name);
+              });
+
+              fs.readFile('./pages/files.html', function(err, data){
+                res.writeHead(200, {'Content-Type': 'text/html'});
+                var json = JSON.stringify(filenames);
+                var result = data.toString('utf-8').replace('{{data}}', json);
+                res.write(result);
+                return res.end();
+              })
+          });
+        }
+      });
+  });
+});
+
+
+app.post('/downloaded', function(req, res) {
+  var filename = req.body.file;
+  console.log(filename);
+
+  fs.readFile('folderIDs.json', 'utf8', function(err, data){
+    var id = "";
+    obj = JSON.parse(data);
+    folders = obj["folders"];
+    folders.forEach(function(folder){
+      var b = groupchoice2.localeCompare(folder.name);
+      if(b==0){
+        id = folder.id;
+        drive.files.list({
+          auth: jwtClient,
+          includeRemoved: false,
+          spaces: 'drive',
+          fileId: [id],
+          fields: 'nextPageToken, files(id, name, parents, mimeType, modifiedTime)',
+          q: `'${[id]}' in parents`
+        }, (listErr, resp) => {
+            if (listErr) {
+              console.log(listErr);
+              return;
+            }
+            resp.data.files.forEach((file) => {
+              console.log(file.name);
+              var u = filename.localeCompare(file.name);
+              if(u==0){
+                  //console.log("wow");
+                  var id = file.id;
+                  var dlfile = fs.createWriteStream('./downloadedfiles/' + file.name);
+                  var f = drive.files.get({
+                      auth: jwtClient,
+                      fileId: id,
+                      alt: 'media'
+                    },
+                    {responseType: 'stream'},
+                    function(err, res){
+                      res.data
+                      .on('end', () => {
+                      })
+                      .on('error', err => {
+                          console.log('Error', err);
+                      })
+                      .pipe(dlfile);
+                      fs.readFile('privateKeys.json', 'utf8', function(err, data){
+                        if(err){
+                          console.log(err);
+                        }
+                        obj = JSON.parse(data);
+                        keys = obj["keys"];
+                        keys.forEach(function(key){
+                          var u = user.localeCompare(key.username);
+                          if(u==0){
+                            var pk = key.key;
+                            groupRef.once('value', function(snapshot) {
+                              if(snapshot.hasChild(groupchoice2)){
+                                var users = snapshot.child(groupchoice2).child("users");
+                                if(users.hasChild(user)){
+                                  var symm = users.child(user).val().symmetrickey;
+                                  var dec =  decrypt(symm, pk);
+                                  decryptFile(file.name, dec);
+                                }
+                              }
+                            })
+
+                          }
+                        });
+                      });
+                    }
+                  );
+                //var symm = getSymmetricKey(user, groupchoice2);
+                //decryptFile(file.name, symm);
+              }
+            });
+        });
+      }
+    });
+  })
+
+  fs.readFile('./pages/console.html', function(err, data){
+    res.writeHead(200, {'Content-Type': 'text/html'});
+    res.write(data);
+    return res.end();
+  })
+});
+
+app.post('/invite', function(req, res) {
+
+  fs.readFile('./pages/invite.html', function(err, data){
+    res.writeHead(200, {'Content-Type': 'text/html'});
+    res.write(data);
+    return res.end();
+  })
+});
+
+app.post('/invited', function(req, res) {
+
+  var me = req.body.user1;
+  var newuser = req.body.user2;
+  var group = req.body.group;
+
+  userRef.once('value', function(snapshot) {
+    if(snapshot.hasChild(newuser)){
+      var pk = snapshot.child(newuser).val().publickey;
+      groupRef.once('value', function(snapshot1) {
+        if(snapshot1.hasChild(group)){
+          var users = snapshot1.child(group).child("users");
+          if(users.hasChild(me)){
+            var symm = users.child(me).val().symmetrickey;
+            fs.readFile('privateKeys.json', 'utf8', function readFileCallback(err, data){
+              var mykey = "";
+              if (err){
+                  console.log(err);
+              } else {
+                obj = JSON.parse(data); //now it an object
+                var keys = obj["keys"];
+                keys.forEach(function(key) {
+                  var b = me.localeCompare(key.username);
+                  if(b==0){
+                    mykey = key.key;
+                    var dec = decrypt(symm, mykey);
+                    var newsymm = encrypt(dec, pk);
+                    database.ref('/groups/' + group + '/users/' + newuser).set({
+                      symmetrickey: newsymm
+                    });
+
+                  }
+                });
+              }
+
+            });
+          }
+        }
+      })
+    }
+  });
+
+
+  fs.readFile('./pages/console.html', function(err, data){
+    res.writeHead(200, {'Content-Type': 'text/html'});
+    res.write(data);
+    return res.end();
+  })
+});
+
+
+app.post('/choose2', function(req, res) {
+
+  fs.readFile('./pages/choosegroup2.html', function(err, data){
+    res.writeHead(200, {'Content-Type': 'text/html'});
+    res.write(data);
+    return res.end();
+  })
 });
 
 
@@ -345,28 +532,96 @@ var decrypt = function(toDecrypt, privateKey) {
 };
 
 
-function uploadFile(name, contents){
+function uploadFile(name, contents, folder){
 
-  const fileMetadata = {
-    name: name,
-    parents: homeFolder
+  drive.files.list({
+    auth: jwtClient,
+    includeRemoved: false,
+    spaces: 'drive',
+    fileId: homeFolder,
+    fields: 'nextPageToken, files(id, name, parents, mimeType, modifiedTime)',
+    q: `'${homeFolder}' in parents`
+  }, (listErr, resp) => {
+      if (listErr) {
+        console.log(listErr);
+        return;
+      }
+      resp.data.files.forEach((file) => {
+        var u = folder.localeCompare(file.name);
+        if(u==0){
+          const fileMetadata = {
+            name: name,
+            parents: [file.id]
+          };
+           const media = {
+            mimeType: 'text/plain',
+            body: contents
+           };
+           drive.files.create({
+            auth: jwtClient,
+            resource: fileMetadata,
+            media,
+            fields: 'id'
+          }, (err, file) => {
+            if (err) {
+              console.log(err);
+              return;
+            }
+              console.log('Uploaded File Id: ', file.data.id);
+           });
+
+        }
+      });
+  });
+}
+
+function createFolder(name){
+
+  var fileMetadata = {
+  name: name,
+  mimeType: 'application/vnd.google-apps.folder',
+  parents: homeFolder
   };
-   const media = {
-    mimeType: 'text/plain',
-    body: contents
-   };
-   drive.files.create({
+  drive.files.create({
     auth: jwtClient,
     resource: fileMetadata,
-    media,
     fields: 'id'
-  }, (err, file) => {
+  }, function (err, file) {
     if (err) {
-      console.log(err);
-      return;
+      // Handle error
+      console.error(err);
+    } else {
+      console.log('Folder Id: ', file.data.id);
+      fs.readFile('folderIDs.json', 'utf8', function readFileCallback(err, data){
+        if (err){
+            console.log(err);
+        } else {
+          obj = JSON.parse(data); //now it an object
+          obj.folders.push({name: name, id: file.data.id}); //add some data
+          json = JSON.stringify(obj); //convert it back to json
+          fs.writeFile('folderIDs.json', json, 'utf8', null); // write it back
+        }
+      });
     }
-      console.log('Uploaded File Id: ', file.data.id);
-   });
+  });
+
+}
+
+
+function decryptFile(name, sym){
+
+  fs.readFile('./downloadedfiles/' + name, 'utf8', function(err, data){
+    if(err){
+      console.log(err);
+    }
+
+    var dec = cryptojs.AES.decrypt(data, sym);
+    fs.writeFile('./downloadedfiles/' + name, dec.toString(cryptojs.enc.Utf8), 'utf8', function(err){
+      if(err){
+        console.log("shite");
+      }
+    });
+  });
 }
 
 
