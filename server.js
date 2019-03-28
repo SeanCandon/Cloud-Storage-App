@@ -1,7 +1,8 @@
 var express = require('express');
 var bodyParser = require('body-parser');
 var app = express();
-app.use(bodyParser.urlencoded({extended: false}));
+//app.use(bodyParser.urlencoded({extended: false}));
+app.use(bodyParser());
 var fs = require('fs');
 var url = require('url');
 var html = require('html');
@@ -18,6 +19,7 @@ const http = require('http');
 const opn = require('opn');
 const destroyer = require('server-destroy');
 const config = require('./auth.json');
+var request = require('request');
 
 var serviceAccount = require("./cloud-storage-app-3a043-firebase-adminsdk-j1g4l-8a92764e80.json");
 
@@ -46,87 +48,31 @@ const homeFolder = ["1pMAGP9xJRtEDFAImABbw9RwPoVoPQyVl"]
    }
  });
 
-//});
-
-var signedin = 0;
-
 var user = "";
 var pass = "";
 
-var groupchoice = "";
 var groupchoice2 = "";
 
 const userRef = database.ref('/users/');
 const groupRef = database.ref('/groups/');
 
-app.get('/', function (req, res) {
-    fs.readFile('./pages/home.html', function(err, data){
-      res.writeHead(200, {'Content-Type': 'text/html'});
-      res.write(data);
-      return res.end();
-    })
-});
-
 app.post('/newuser', function(req, res) {
 
-    user = req.body.newusername;
-    pass = req.body.newpassword;
+  var publicKey = req.body.publicKey;
+  var user = req.body.username;
+  var pass = req.body.password;
 
-    userRef.once('value', function(snapshot) {
-      if(snapshot.hasChild(user)){
-        fs.readFile('./pages/home.html', function(err, data){
-          res.writeHead(200, {'Content-Type': 'text/html'});
-          res.write(data);
-          return res.end();
-        })
-      }
-      else{
-
-        var privateKey, publicKey;
-        publicKey = '';
-        cp.exec('openssl genrsa 2048', function(err, stdout, stderr) {
-          assert.ok(!err);
-          privateKey = stdout;
-          fs.readFile('privateKeys.json', 'utf8', function readFileCallback(err, data){
-            if (err){
-                console.log(err);
-            } else {
-              obj = JSON.parse(data); //now it an object
-              obj.keys.push({username: user, key: privateKey}); //add some data
-              json = JSON.stringify(obj); //convert it back to json
-              fs.writeFile('privateKeys.json', json, 'utf8', null); // write it back
-            }
-          });
-          makepub = cp.spawn('openssl', ['rsa', '-pubout']);
-          makepub.on('exit', function(code) {
-            assert.equal(code, 0);
-            database.ref('/users/' + user).set({
-              publickey: publicKey,
-              username: user,
-              password: pass
-            });
-          });
-          makepub.stdout.on('data', function(data) {
-            publicKey += data;
-          });
-          makepub.stdout.setEncoding('ascii');
-          makepub.stdin.write(privateKey);
-          makepub.stdin.end();
-        });
-
-      fs.readFile('./pages/newuser.html', function(err, data){
-        res.writeHead(200, {'Content-Type': 'text/html'});
-        res.write(data);
-        return res.end();
-      })
-    }
+  database.ref('/users/' + user).set({
+    publickey: publicKey,
+    username: user,
+    password: pass
   });
 });
 
 app.post('/olduser', function(req, res) {
 
-  user = req.body.username;
-  pass = req.body.password;
+  var user = req.body.username;
+  var pass = req.body.password;
 
   userRef.once('value', function(snapshot) {
     if(snapshot.hasChild(user)){
@@ -135,26 +81,39 @@ app.post('/olduser', function(req, res) {
       var u = usrn.localeCompare(user);
       var p = pswd.localeCompare(pass);
       if (u != 0 || p != 0){
-        fs.readFile('./pages/home.html', function(err, data){
-          res.writeHead(200, {'Content-Type': 'text/html'});
-          res.write(data);
-          return res.end();
-        })
+        request.post(
+            'http://localhost:8080/login',
+            { json: { b: 0 } },
+            function (error, response, body) {
+                if (!error && response.statusCode == 200) {
+                    console.log(body);
+                }
+            }
+        );
       }
       else{
-        fs.readFile('./pages/console.html', function(err, data){
-          res.writeHead(200, {'Content-Type': 'text/html'});
-          res.write(data);
-          return res.end();
-        })
+        request.post(
+            'http://localhost:8080/login',
+            { json: { b: 1 } },
+            function (error, response, body) {
+                if (!error && response.statusCode == 200) {
+                    console.log(body);
+                }
+            }
+        );
+
       }
     }
     else{
-      fs.readFile('./pages/home.html', function(err, data){
-        res.writeHead(200, {'Content-Type': 'text/html'});
-        res.write(data);
-        return res.end();
-      })
+      request.post(
+          'http://localhost:8080/login',
+          { json: { b: 0 } },
+          function (error, response, body) {
+              if (!error && response.statusCode == 200) {
+                  console.log(body);
+              }
+          }
+      );
     }
   });
 
@@ -162,136 +121,96 @@ app.post('/olduser', function(req, res) {
 });
 
 
-app.post('/console', function(req, res){
+app.post('/sendsymmkey', function(req, res) {
 
-  fs.readFile('./pages/console.html', function(err, data){
-    res.writeHead(200, {'Content-Type': 'text/html'});
-    res.write(data);
-    return res.end();
-  })
-});
+  var user = req.body.user;
+  var groupchoice = req.body.group;
+  var dest = req.body.destination;
 
+  groupRef.once('value', function(snapshot) {
+    if(snapshot.hasChild(groupchoice)){
+      var users = snapshot.child(groupchoice).child("users");
+      if(users.hasChild(user)){
+        var symm = users.child(user).val().symmetrickey;
+        request.post(
+            'http://localhost:8080/newupload',
+            { json: { symmkey: symm } },
+            function (error, response, body) {
+                if (!error && response.statusCode == 200) {
+                    console.log(body);
+                }
+            }
+        );
 
-app.post('/uploaded', function(req, res){
-  //console.log(groupchoice);
-  fs.readFile('./pages/console.html', function(err, data){
-    res.writeHead(200, {'Content-Type': 'text/html'});
-    res.write(data);
-    return res.end();
-  })
-
-  new formidable.IncomingForm().parse(req, (err, fields, files) => {
-    if (err) {
-      console.error('Error', err)
-      throw err
-    }
-    var oldpath = files.filetoupload.path;
-    var newpath = './uploadedfiles/' + files.filetoupload.name;
-    fs.rename(oldpath, newpath, function (err) {
-      if (err) throw err;
-    });
-
-    groupRef.once('value', function(snapshot) {
-      if(snapshot.hasChild(groupchoice)){
-        console.log("user = " + user);
-        var symmkey = snapshot.child(groupchoice).child("users").child(user).val().symmetrickey;
-
-        fs.readFile('privateKeys.json', 'utf8', function readFileCallback(err, data){
-          var mykey = "";
-          if (err){
-              console.log(err);
-          } else {
-            obj = JSON.parse(data); //now it an object
-            var keys = obj["keys"];
-            keys.forEach(function(key) {
-              var b = user.localeCompare(key.username);
-              if(b==0){
-                var pk = key.key;
-                mykey = decrypt(symmkey, pk);
-              }
-            });
-          }
-          if(mykey != ""){
-            fs.readFile(newpath, 'utf-8', function(err, contents) {
-              if(err){
-                console.log(err);
-              }
-              else{
-                var encryptedboi = cryptojs.AES.encrypt(contents, mykey);
-                var decryptedboi = cryptojs.AES.decrypt(encryptedboi.toString(), mykey);
-                console.log("decryptedboi = " + decryptedboi.toString(cryptojs.enc.Utf8));
-                uploadFile(files.filetoupload.name, encryptedboi.toString(), groupchoice);
-              }
-            })
-          }
-        });
       }
-    });
+    }
   })
-});
 
-app.post('/choose', function(req, res) {
-  fs.readFile('./pages/choosegroup.html', function(err, data){
-    res.writeHead(200, {'Content-Type': 'text/html'});
-    res.write(data);
-    return res.end();
-  })
 });
 
 
 app.post('/upload', function(req, res) {
-
-  groupchoice = req.body.groupname;
-
-  fs.readFile('./pages/upload.html', function(err, data){
-    res.writeHead(200, {'Content-Type': 'text/html'});
-    res.write(data);
-    return res.end();
-  })
+    var filename = req.body.file;
+    var enc = req.body.enc;
+    var groupchoice = req.body.group;
+    console.log(filename);
+    console.log(groupchoice);
+    uploadFile(filename, enc, groupchoice);
 });
 
-app.post('/create', function(req, res) {
-  fs.readFile('./pages/create.html', function(err, data){
-    res.writeHead(200, {'Content-Type': 'text/html'});
-    res.write(data);
-    return res.end();
-  })
+
+app.post('/sendpubkey', function(req, res) {
+
+  user = req.body.user;
+
+  var pubkey = "";
+  userRef.once('value', function(snapshot1) {
+    if(snapshot1.hasChild(user)){
+      pubkey = snapshot1.child(user).val().publickey;
+    }
+    request.post(
+        'http://localhost:8080/getpubkey',
+        { json: { pubkey: pubkey } },
+        function (error, response, body) {
+            if (!error && response.statusCode == 200) {
+                console.log(body);
+            }
+        }
+    );
+  });
+
 });
 
 app.post('/created', function(req, res) {
   var group = req.body.groupname;
+  var symmEnc = req.body.symmenc;
   console.log(group);
 
   createFolder(group);
 
+  var b = 0;
+
   groupRef.once('value', function(snapshot) {
     if(snapshot.hasChild(group)){
-      fs.readFile('./pages/unsuccessful.html', function(err, data){
-        res.writeHead(200, {'Content-Type': 'text/html'});
-        res.write(data);
-        return res.end();
-      })
+      b = 0;
     }
     else{
-      var symmkey = generateKey();
-      console.log("symm key = " + symmkey);
-
-      userRef.once('value', function(snapshot1) {
-        if(snapshot1.hasChild(user)){
-          var pubkey = snapshot1.child(user).val().publickey;
-          var symmEnc = encrypt(symmkey, pubkey);
-
-          database.ref('/groups/' + group + '/users/' + user).set({
-            symmetrickey: symmEnc
-          });
-          fs.readFile('./pages/console.html', function(err, data){
-            res.writeHead(200, {'Content-Type': 'text/html'});
-            res.write(data);
-            return res.end();
-          })
-        }
+      b = 1;
+      console.log("wowowowoow");
+      database.ref('/groups/' + group + '/users/' + user).set({
+        symmetrickey: symmEnc
       });
     }
+    request.post(
+        'http://localhost:8080/newgroup',
+        { json: { b: b } },
+        function (error, response, body) {
+            if (!error && response.statusCode == 200) {
+                console.log(body);
+            }
+        }
+    );
+
   });
 
 });
@@ -335,13 +254,16 @@ app.post('/files', function(req, res) {
                 filenames.push(file.name);
               });
 
-              fs.readFile('./pages/files.html', function(err, data){
-                res.writeHead(200, {'Content-Type': 'text/html'});
-                var json = JSON.stringify(filenames);
-                var result = data.toString('utf-8').replace('{{data}}', json);
-                res.write(result);
-                return res.end();
-              })
+              request.post(
+                  'http://localhost:8080/displayfiles',
+                  { json: { filenames: JSON.stringify(filenames) } },
+                  function (error, response, body) {
+                      if (!error && response.statusCode == 200) {
+                          console.log(body);
+                      }
+                  }
+              );
+
           });
         }
       });
@@ -351,7 +273,6 @@ app.post('/files', function(req, res) {
 
 app.post('/downloaded', function(req, res) {
   var filename = req.body.file;
-  console.log(filename);
 
   fs.readFile('folderIDs.json', 'utf8', function(err, data){
     var id = "";
@@ -374,10 +295,8 @@ app.post('/downloaded', function(req, res) {
               return;
             }
             resp.data.files.forEach((file) => {
-              console.log(file.name);
               var u = filename.localeCompare(file.name);
               if(u==0){
-                  //console.log("wow");
                   var id = file.id;
                   var dlfile = fs.createWriteStream('./downloadedfiles/' + file.name);
                   var f = drive.files.get({
@@ -394,34 +313,28 @@ app.post('/downloaded', function(req, res) {
                           console.log('Error', err);
                       })
                       .pipe(dlfile);
-                      fs.readFile('privateKeys.json', 'utf8', function(err, data){
-                        if(err){
-                          console.log(err);
-                        }
-                        obj = JSON.parse(data);
-                        keys = obj["keys"];
-                        keys.forEach(function(key){
-                          var u = user.localeCompare(key.username);
-                          if(u==0){
-                            var pk = key.key;
-                            groupRef.once('value', function(snapshot) {
-                              if(snapshot.hasChild(groupchoice2)){
-                                var users = snapshot.child(groupchoice2).child("users");
-                                if(users.hasChild(user)){
-                                  var symm = users.child(user).val().symmetrickey;
-                                  var dec =  decrypt(symm, pk);
-                                  decryptFile(file.name, dec);
+
+                      groupRef.once('value', function(snapshot) {
+                        if(snapshot.hasChild(groupchoice2)){
+                          var users = snapshot.child(groupchoice2).child("users");
+                          if(users.hasChild(user)){
+                            var symm = users.child(user).val().symmetrickey;
+                            request.post(
+                                'http://localhost:8080/decrypt',
+                                { json: { filename: file.name,
+                                          symmkey: symm } },
+                                function (error, response, body) {
+                                    if (!error && response.statusCode == 200) {
+                                        console.log(body);
+                                    }
                                 }
-                              }
-                            })
+                            );
 
                           }
-                        });
-                      });
+                        }
+                      })
                     }
                   );
-                //var symm = getSymmetricKey(user, groupchoice2);
-                //decryptFile(file.name, symm);
               }
             });
         });
@@ -429,107 +342,56 @@ app.post('/downloaded', function(req, res) {
     });
   })
 
-  fs.readFile('./pages/console.html', function(err, data){
-    res.writeHead(200, {'Content-Type': 'text/html'});
-    res.write(data);
-    return res.end();
-  })
 });
 
-app.post('/invite', function(req, res) {
 
-  fs.readFile('./pages/invite.html', function(err, data){
-    res.writeHead(200, {'Content-Type': 'text/html'});
-    res.write(data);
-    return res.end();
-  })
-});
+app.post('/symmpub', function(req, res) {
 
-app.post('/invited', function(req, res) {
-
-  var me = req.body.user1;
-  var newuser = req.body.user2;
+  var u1 = req.body.user1;
+  var u2 = req.body.user2;
   var group = req.body.group;
 
   userRef.once('value', function(snapshot) {
-    if(snapshot.hasChild(newuser)){
-      var pk = snapshot.child(newuser).val().publickey;
+    if(snapshot.hasChild(u2)){
+      var pk = snapshot.child(u2).val().publickey;
       groupRef.once('value', function(snapshot1) {
         if(snapshot1.hasChild(group)){
           var users = snapshot1.child(group).child("users");
-          if(users.hasChild(me)){
-            var symm = users.child(me).val().symmetrickey;
-            fs.readFile('privateKeys.json', 'utf8', function readFileCallback(err, data){
-              var mykey = "";
-              if (err){
-                  console.log(err);
-              } else {
-                obj = JSON.parse(data); //now it an object
-                var keys = obj["keys"];
-                keys.forEach(function(key) {
-                  var b = me.localeCompare(key.username);
-                  if(b==0){
-                    mykey = key.key;
-                    var dec = decrypt(symm, mykey);
-                    var newsymm = encrypt(dec, pk);
-                    database.ref('/groups/' + group + '/users/' + newuser).set({
-                      symmetrickey: newsymm
-                    });
+          if(users.hasChild(u1)){
+            var symm = users.child(u1).val().symmetrickey;
+            request.post(
+                'http://localhost:8080/newmember',
+                { json: { publickey: pk,
+                          symmkey: symm,
+                          group: group } },
+                function (error, response, body) {
+                    if (!error && response.statusCode == 200) {
+                        console.log(body);
+                    }
+                }
+            );
 
-                  }
-                });
-              }
-
-            });
           }
         }
       })
     }
   });
 
-
-  fs.readFile('./pages/console.html', function(err, data){
-    res.writeHead(200, {'Content-Type': 'text/html'});
-    res.write(data);
-    return res.end();
-  })
 });
 
 
-app.post('/choose2', function(req, res) {
+app.post('/newmember', function(req, res) {
 
-  fs.readFile('./pages/choosegroup2.html', function(err, data){
-    res.writeHead(200, {'Content-Type': 'text/html'});
-    res.write(data);
-    return res.end();
-  })
+  var user = req.body.user;
+  var symmkey = req.body.symmkey;
+  var group = req.body.group;
+
+  database.ref('/groups/' + group + '/users/' + user).set({
+    symmetrickey: symmkey
+  });
+
+
 });
-
-
-function generateKey() {
-  var keyLength = 50;
-  var chars =
-  "0123456789ABCDEFGHIJKLMNOPQRSTUVWXTZabcdefghiklmnopqrstuvwxyz*&-%/!?*+=()";
-  var randomString = '';
-  for (var i=0; i < keyLength; i++) {
-    var rnum = Math.floor(Math.random() * chars.length);
-    randomString += chars.substring(rnum,rnum+1);
-  }
-  return randomString;
-}
-
-
-var encrypt = function(toEncrypt, publicKey) {
-    var buffer = Buffer.from(toEncrypt);
-    var encrypted = crypto.publicEncrypt(publicKey, buffer);
-    return encrypted.toString("base64");
-};
-
-var decrypt = function(toDecrypt, privateKey) {
-    var buffer = Buffer.from(toDecrypt, "base64");
-    var decrypted = crypto.privateDecrypt(privateKey, buffer);
-    return decrypted.toString("utf8");
-};
 
 
 function uploadFile(name, contents, folder){
@@ -625,6 +487,6 @@ function decryptFile(name, sym){
 }
 
 
-app.listen(8080, function () {
-    console.log('Listening on http://localhost:8080');
+app.listen(8081, function () {
+    console.log('Listening on http://localhost:8081');
 });
