@@ -147,17 +147,40 @@ app.post('/console', function(req, res){
 
 
 app.post('/choose', function(req, res) {
+
+  browser = res;
+
+  request.post(
+      'http://localhost:8081/sendgroups',
+      { json: { user: user,
+                dest: 'choosegroup'} },
+      function (error, response, body) {
+          if (!error && response.statusCode == 200) {
+              console.log(body);
+          }
+      }
+  );
+
+});
+
+
+app.post('/choosegroup', function(req, res) {
+
+  var groups = req.body.groups;
+
   fs.readFile('./pages/choosegroup.html', function(err, data){
-    res.writeHead(200, {'Content-Type': 'text/html'});
-    res.write(data);
-    return res.end();
+    browser.writeHead(200, {'Content-Type': 'text/html'});
+    var result = data.toString('utf-8').replace('{{data}}', groups);
+    browser.write(result);
+    return browser.end();
   })
 });
 
 
 app.post('/upload', function(req, res) {
 
-  groupchoice = req.body.groupname;
+  groupchoice = req.body.selectpicker;
+  console.log(req.body.selectpicker);
 
   fs.readFile('./pages/upload.html', function(err, data){
     res.writeHead(200, {'Content-Type': 'text/html'});
@@ -287,7 +310,8 @@ app.post('/getpubkey', function(req, res) {
   request.post(
       'http://localhost:8081/created',
       { json: { groupname: createdGroup,
-                symmenc: symmEnc } },
+                symmenc: symmEnc,
+                user: user } },
       function (error, response, body) {
           if (!error && response.statusCode == 200) {
               console.log(body);
@@ -324,7 +348,7 @@ app.post('/files', function(req, res) {
 
   browser = res;
 
-  groupchoice2 = req.body.groupname;
+  groupchoice2 = req.body.selectpicker;
 
   request.post(
       'http://localhost:8081/files',
@@ -358,7 +382,9 @@ app.post('/downloaded', function(req, res) {
 
   request.post(
       'http://localhost:8081/downloaded',
-      { json: { file: filename } },
+      { json: { file: filename,
+                groupname: groupchoice2,
+                user: user } },
       function (error, response, body) {
           if (!error && response.statusCode == 200) {
               console.log(body);
@@ -399,24 +425,45 @@ app.post('/decrypt', function(req, res) {
 
 app.post('/invite', function(req, res) {
 
+  browser = res;
+
+  request.post(
+      'http://localhost:8081/sendgroups',
+      { json: { user: user,
+                dest: 'invite2'} },
+      function (error, response, body) {
+          if (!error && response.statusCode == 200) {
+              console.log(body);
+          }
+      }
+  );
+
+});
+
+
+app.post('/invite2', function(req, res) {
+
+  var groups = req.body.groups;
+
   fs.readFile('./pages/invite.html', function(err, data){
-    res.writeHead(200, {'Content-Type': 'text/html'});
-    res.write(data);
-    return res.end();
+    browser.writeHead(200, {'Content-Type': 'text/html'});
+    var result = data.toString('utf-8').replace('{{data}}', groups);
+    browser.write(result);
+    return browser.end();
   })
 });
+
 
 app.post('/invited', function(req, res) {
 
   browser = res;
 
-  var me = req.body.user1;
-  newuser = req.body.user2;
-  var group = req.body.group;
+  newuser = req.body.user;
+  var group = req.body.selectpicker;
 
   request.post(
       'http://localhost:8081/symmpub',
-      { json: { user1: me,
+      { json: { user1: user,
                 user2: newuser,
                 group: group } },
       function (error, response, body) {
@@ -425,6 +472,65 @@ app.post('/invited', function(req, res) {
           }
       }
   );
+});
+
+app.post('/remove', function(req, res) {
+
+  browser = res;
+
+  request.post(
+      'http://localhost:8081/sendownedgroups',
+      { json: { user: user,
+                dest: 'remove2'} },
+      function (error, response, body) {
+          if (!error && response.statusCode == 200) {
+              console.log(body);
+          }
+      }
+  );
+});
+
+
+app.post('/remove2', function(req, res) {
+
+  var groups = req.body.groups;
+
+  fs.readFile('./pages/remove.html', function(err, data){
+    browser.writeHead(200, {'Content-Type': 'text/html'});
+    var result = data.toString('utf-8').replace('{{data}}', groups);
+    browser.write(result);
+    return browser.end();
+  })
+
+});
+
+
+app.post('/removed', function(req, res) {
+
+  browser = res;
+
+  remUser = req.body.user;
+  var group = req.body.selectpicker;
+
+  request.post(
+      'http://localhost:8081/remove',
+      { json: { user1: user,
+                user2: remUser,
+                group: group } },
+      function (error, response, body) {
+          if (!error && response.statusCode == 200) {
+              console.log(body);
+          }
+      }
+  );
+
+
+  fs.readFile('./pages/console.html', function(err, data){
+    browser.writeHead(200, {'Content-Type': 'text/html'});
+    browser.write(data);
+    return browser.end();
+  })
+
 });
 
 
@@ -472,10 +578,31 @@ app.post('/newmember', function(req, res) {
 
 app.post('/choose2', function(req, res) {
 
+  browser = res;
+
+  request.post(
+      'http://localhost:8081/sendgroups',
+      { json: { user: user,
+                dest: 'choosegroup2'} },
+      function (error, response, body) {
+          if (!error && response.statusCode == 200) {
+              console.log(body);
+          }
+      }
+  );
+
+});
+
+
+app.post('/choosegroup2', function(req, res) {
+
+  var groups = req.body.groups;
+
   fs.readFile('./pages/choosegroup2.html', function(err, data){
-    res.writeHead(200, {'Content-Type': 'text/html'});
-    res.write(data);
-    return res.end();
+    browser.writeHead(200, {'Content-Type': 'text/html'});
+    var result = data.toString('utf-8').replace('{{data}}', groups);
+    browser.write(result);
+    return browser.end();
   })
 });
 

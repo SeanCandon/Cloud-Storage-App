@@ -12,15 +12,17 @@
 </head>
 
 <body>
-  Choose group you wish to download from
+  Remove a user from a group you created
   <br>
-  <form id="groupForm" action="/files" method="post">
+  <form action='/removed' method="post">
+    <input type="text" id="user" placeholder="enter username" name="user">
+    <br>
     <select class="selectpicker" data-style="btn-info" name="selectpicker">
         <optgroup id="optboi" label="Select Group">
         </optgroup>
     </select>
-    <input type="submit" value="Go">
-</form>
+    <input type="submit" value="Remove">
+  </form>
   <script>
     var groups = {{data}};
     window.onload = function() {

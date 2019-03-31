@@ -1,7 +1,6 @@
 var express = require('express');
 var bodyParser = require('body-parser');
 var app = express();
-//app.use(bodyParser.urlencoded({extended: false}));
 app.use(bodyParser());
 var fs = require('fs');
 var url = require('url');
@@ -47,11 +46,6 @@ const homeFolder = ["1pMAGP9xJRtEDFAImABbw9RwPoVoPQyVl"]
      return;
    }
  });
-
-var user = "";
-var pass = "";
-
-var groupchoice2 = "";
 
 const userRef = database.ref('/users/');
 const groupRef = database.ref('/groups/');
@@ -161,7 +155,7 @@ app.post('/upload', function(req, res) {
 
 app.post('/sendpubkey', function(req, res) {
 
-  user = req.body.user;
+  var user = req.body.user;
 
   var pubkey = "";
   userRef.once('value', function(snapshot1) {
@@ -184,6 +178,7 @@ app.post('/sendpubkey', function(req, res) {
 app.post('/created', function(req, res) {
   var group = req.body.groupname;
   var symmEnc = req.body.symmenc;
+  var user = req.body.user;
   console.log(group);
 
   createFolder(group);
@@ -200,6 +195,17 @@ app.post('/created', function(req, res) {
       database.ref('/groups/' + group + '/users/' + user).set({
         symmetrickey: symmEnc
       });
+
+      database.ref('/groups/' + group + '/owner').set({
+        owner: user
+      });
+
+      userRef.once('value', function(snapshot1) {
+        database.ref('/users/' + user + '/groups/' + group).set({
+          name: group,
+          owner: 1
+        });
+      })
     }
     request.post(
         'http://localhost:8080/newgroup',
@@ -218,7 +224,7 @@ app.post('/created', function(req, res) {
 
 app.post('/files', function(req, res) {
 
-  groupchoice2 = req.body.groupname;
+  var groupchoice2 = req.body.groupname;
 
   drive.files.list({
     auth: jwtClient,
@@ -273,13 +279,15 @@ app.post('/files', function(req, res) {
 
 app.post('/downloaded', function(req, res) {
   var filename = req.body.file;
+  var user = req.body.user;
+  var group = req.body.groupname;
 
   fs.readFile('folderIDs.json', 'utf8', function(err, data){
     var id = "";
     obj = JSON.parse(data);
     folders = obj["folders"];
     folders.forEach(function(folder){
-      var b = groupchoice2.localeCompare(folder.name);
+      var b = group.localeCompare(folder.name);
       if(b==0){
         id = folder.id;
         drive.files.list({
@@ -315,8 +323,9 @@ app.post('/downloaded', function(req, res) {
                       .pipe(dlfile);
 
                       groupRef.once('value', function(snapshot) {
-                        if(snapshot.hasChild(groupchoice2)){
-                          var users = snapshot.child(groupchoice2).child("users");
+                        if(snapshot.hasChild(group)){
+                          console.log("user = " + user);
+                          var users = snapshot.child(group).child("users");
                           if(users.hasChild(user)){
                             var symm = users.child(user).val().symmetrickey;
                             request.post(
@@ -390,6 +399,101 @@ app.post('/newmember', function(req, res) {
     symmetrickey: symmkey
   });
 
+  database.ref('/users/' + user + '/groups/' + group).set({
+    name: group,
+    owner: 0
+  });
+
+
+});
+
+
+app.post('/sendgroups', function(req, res) {
+  var usr = req.body.user;
+  var dest = req.body.dest;
+  userRef.once('value', function(snapshot) {
+    var g = [];
+    if(snapshot.hasChild(usr)){
+      var u = snapshot.child(usr);
+      if(u.hasChild('groups')){
+        var groups = u.child('groups');
+        groups.forEach(function(group) {
+          g.push(group.val().name);
+        })
+      }
+    }
+    request.post(
+        'http://localhost:8080/' + dest,
+        { json: { groups: JSON.stringify(g) } },
+        function (error, response, body) {
+            if (!error && response.statusCode == 200) {
+                console.log(body);
+            }
+        }
+    );
+  });
+
+});
+
+
+app.post('/sendownedgroups', function(req, res) {
+  var usr = req.body.user;
+  var dest = req.body.dest;
+  userRef.once('value', function(snapshot) {
+    var g = [];
+    if(snapshot.hasChild(usr)){
+      var u = snapshot.child(usr);
+      if(u.hasChild('groups')){
+        var groups = u.child('groups');
+        groups.forEach(function(group) {
+          var o = group.val().owner;
+          if(o==1){
+            g.push(group.val().name);
+          }
+        })
+      }
+    }
+    request.post(
+        'http://localhost:8080/' + dest,
+        { json: { groups: JSON.stringify(g) } },
+        function (error, response, body) {
+            if (!error && response.statusCode == 200) {
+                console.log(body);
+            }
+        }
+    );
+  });
+
+});
+
+
+app.post('/remove', function(req, res) {
+
+  var owner = req.body.user1;
+  var rem = req.body.user2;
+  var group = req.body.group;
+
+  userRef.once('value', function(snapshot) {
+    if(snapshot.hasChild(rem)){
+      var u = snapshot.child(rem);
+      if(u.hasChild('groups')){
+        if(u.child('groups').hasChild(group)){
+          database.ref('/users/' + rem + '/groups/' + group).remove();
+        }
+      }
+    }
+  });
+
+  groupRef.once('value', function(snapshot1) {
+    if(snapshot1.hasChild(group)){
+      var g = snapshot1.child(group);
+      if(g.hasChild('users')){
+        if(g.child('users').hasChild(rem)){
+          database.ref('/groups/' + group + '/users/' + rem).remove();
+        }
+      }
+    }
+  });
 
 });
 
