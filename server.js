@@ -6,12 +6,7 @@ var fs = require('fs');
 var url = require('url');
 var html = require('html');
 var firebase = require('firebase-admin')
-var formidable = require('formidable');
-var cp = require('child_process');
 var assert = require('assert');
-var crypto = require('crypto');
-var cryptico = require('cryptico');
-var cryptojs = require('crypto-js');
 const {google} = require('googleapis');
 const path = require('path');
 const http = require('http');
@@ -147,8 +142,6 @@ app.post('/upload', function(req, res) {
     var filename = req.body.file;
     var enc = req.body.enc;
     var groupchoice = req.body.group;
-    console.log(filename);
-    console.log(groupchoice);
     uploadFile(filename, enc, groupchoice);
 });
 
@@ -179,9 +172,6 @@ app.post('/created', function(req, res) {
   var group = req.body.groupname;
   var symmEnc = req.body.symmenc;
   var user = req.body.user;
-  console.log(group);
-
-  createFolder(group);
 
   var b = 0;
 
@@ -191,21 +181,41 @@ app.post('/created', function(req, res) {
     }
     else{
       b = 1;
-      console.log("wowowowoow");
-      database.ref('/groups/' + group + '/users/' + user).set({
-        symmetrickey: symmEnc
+
+      var fileMetadata = {
+      name: group,
+      mimeType: 'application/vnd.google-apps.folder',
+      parents: homeFolder
+      };
+      drive.files.create({
+        auth: jwtClient,
+        resource: fileMetadata,
+        fields: 'id'
+      }, function (err, file) {
+        if (err) {
+          // Handle error
+          console.error(err);
+        } else {
+
+          database.ref('/groups/' + group).set({
+            id: file.data.id
+          });
+
+          database.ref('/groups/' + group + '/users/' + user).set({
+            symmetrickey: symmEnc
+          });
+
+          database.ref('/groups/' + group + '/owner').set({
+            owner: user
+          });
+
+          database.ref('/users/' + user + '/groups/' + group).set({
+            name: group,
+            owner: 1
+          });
+        }
       });
 
-      database.ref('/groups/' + group + '/owner').set({
-        owner: user
-      });
-
-      userRef.once('value', function(snapshot1) {
-        database.ref('/users/' + user + '/groups/' + group).set({
-          name: group,
-          owner: 1
-        });
-      })
     }
     request.post(
         'http://localhost:8080/newgroup',
@@ -225,6 +235,7 @@ app.post('/created', function(req, res) {
 app.post('/files', function(req, res) {
 
   var groupchoice2 = req.body.groupname;
+  var dest = req.body.dest;
 
   drive.files.list({
     auth: jwtClient,
@@ -241,7 +252,6 @@ app.post('/files', function(req, res) {
       resp.data.files.forEach((file) => {
         var b = groupchoice2.localeCompare(file.name);
         if(b==0){
-          console.log("Folder = " + file.name);
           var folderId = file.id;
           drive.files.list({
             auth: jwtClient,
@@ -261,7 +271,7 @@ app.post('/files', function(req, res) {
               });
 
               request.post(
-                  'http://localhost:8080/displayfiles',
+                  'http://localhost:8080/' + dest,
                   { json: { filenames: JSON.stringify(filenames) } },
                   function (error, response, body) {
                       if (!error && response.statusCode == 200) {
@@ -282,14 +292,12 @@ app.post('/downloaded', function(req, res) {
   var user = req.body.user;
   var group = req.body.groupname;
 
-  fs.readFile('folderIDs.json', 'utf8', function(err, data){
+  groupRef.once('value', function(snapshot1) {
     var id = "";
-    obj = JSON.parse(data);
-    folders = obj["folders"];
-    folders.forEach(function(folder){
-      var b = group.localeCompare(folder.name);
+    snapshot1.forEach(function(folder){
+      var b = group.localeCompare(folder.key);
       if(b==0){
-        id = folder.id;
+        id = folder.val().id;
         drive.files.list({
           auth: jwtClient,
           includeRemoved: false,
@@ -324,7 +332,6 @@ app.post('/downloaded', function(req, res) {
 
                       groupRef.once('value', function(snapshot) {
                         if(snapshot.hasChild(group)){
-                          console.log("user = " + user);
                           var users = snapshot.child(group).child("users");
                           if(users.hasChild(user)){
                             var symm = users.child(user).val().symmetrickey;
@@ -349,7 +356,7 @@ app.post('/downloaded', function(req, res) {
         });
       }
     });
-  })
+  });
 
 });
 
@@ -498,6 +505,46 @@ app.post('/remove', function(req, res) {
 });
 
 
+app.post('/deletefile', function(req, res) {
+
+  var file = req.body.file;
+  var group = req.body.groupname;
+  deleteFile(file, group);
+
+});
+
+
+app.post('/deletegroup', function(req, res) {
+
+  var group = req.body.group;
+
+  groupRef.once('value', function(snapshot1){
+    var id = "";
+    snapshot1.forEach(function(folder){
+      var b = group.localeCompare(folder.key);
+      if(b==0){
+        drive.files.delete({
+          auth: jwtClient,
+          'fileId': [folder.val().id]
+        });
+        database.ref('/groups/' + group).remove();
+        userRef.once('value', function(snapshot) {
+          snapshot.forEach(function(user){
+            if(user.hasChild('groups')){
+              if(user.child('groups').hasChild(group)){
+                database.ref('/users/' + user.key + '/groups/' + group).remove();
+              }
+            }
+          });
+        });
+      }
+    });
+  });
+
+
+});
+
+
 function uploadFile(name, contents, folder){
 
   drive.files.list({
@@ -541,36 +588,40 @@ function uploadFile(name, contents, folder){
   });
 }
 
-function createFolder(name){
 
-  var fileMetadata = {
-  name: name,
-  mimeType: 'application/vnd.google-apps.folder',
-  parents: homeFolder
-  };
-  drive.files.create({
-    auth: jwtClient,
-    resource: fileMetadata,
-    fields: 'id'
-  }, function (err, file) {
-    if (err) {
-      // Handle error
-      console.error(err);
-    } else {
-      console.log('Folder Id: ', file.data.id);
-      fs.readFile('folderIDs.json', 'utf8', function readFileCallback(err, data){
-        if (err){
-            console.log(err);
-        } else {
-          obj = JSON.parse(data); //now it an object
-          obj.folders.push({name: name, id: file.data.id}); //add some data
-          json = JSON.stringify(obj); //convert it back to json
-          fs.writeFile('folderIDs.json', json, 'utf8', null); // write it back
-        }
-      });
-    }
-  });
+function deleteFile(name, group){
 
+  groupRef.once('value', function(snapshot){
+    var id = "";
+    snapshot.forEach(function(folder){
+      var b = group.localeCompare(folder.key);
+      if(b==0){
+        id = folder.val().id;
+        drive.files.list({
+          auth: jwtClient,
+          includeRemoved: false,
+          spaces: 'drive',
+          fileId: [id],
+          fields: 'nextPageToken, files(id, name, parents, mimeType, modifiedTime)',
+          q: `'${[id]}' in parents`
+        }, (listErr, resp) => {
+            if (listErr) {
+              console.log(listErr);
+              return;
+            }
+            resp.data.files.forEach((file) => {
+              var u = name.localeCompare(file.name);
+              if(u==0){
+                drive.files.delete({
+                  auth: jwtClient,
+                  'fileId': [file.id]
+                });
+              }
+            });
+        });
+      }
+    });
+  })
 }
 
 

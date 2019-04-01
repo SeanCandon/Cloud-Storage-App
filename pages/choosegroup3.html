@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="utf-8">
+  <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.3.1/jquery.min.js">
+  <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/4.3.1/css/bootstrap.min.css">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/popper.js/1.14.7/umd/popper.min.js"></script>
+  <script src="https://maxcdn.bootstrapcdn.com/bootstrap/4.3.1/js/bootstrap.min.js"></script>
+  </script>
+
+</head>
+
+<body>
+  Choose group you wish to download from
+  <br>
+  <form id="groupForm" action="/deletefiles" method="post">
+    <select class="selectpicker" data-style="btn-info" name="selectpicker">
+        <optgroup id="optboi" label="Select Group">
+        </optgroup>
+    </select>
+    <input type="submit" value="Go">
+</form>
+  <script>
+    var groups = {{data}};
+    window.onload = function() {
+      groups.forEach(function(group) {
+        $("#optboi").append("<option name=group value="+group+">"+group+"</option>");
+      });
+    }
+  </script>
+</body>
+</html>

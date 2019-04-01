@@ -5,29 +5,23 @@ app.use(bodyParser());
 var fs = require('fs');
 var url = require('url');
 var html = require('html');
-var firebase = require('firebase-admin')
 var formidable = require('formidable');
 var cp = require('child_process');
 var assert = require('assert');
 var crypto = require('crypto');
 var cryptico = require('cryptico');
 var cryptojs = require('crypto-js');
-const {google} = require('googleapis');
 const path = require('path');
 const http = require('http');
 const opn = require('opn');
-const destroyer = require('server-destroy');
-const config = require('./auth.json');
 var request = require('request');
-
-
-var signedin = 0;
 
 var user = "";
 var pass = "";
 
 var groupchoice = "";
 var groupchoice2 = "";
+var groupchoice3 = "";
 var createdGroup = "";
 var fileupload = "";
 var newuser = "";
@@ -67,7 +61,6 @@ app.post('/newuser', function(req, res) {
       makepub = cp.spawn('openssl', ['rsa', '-pubout']);
       makepub.on('exit', function(code) {
         assert.equal(code, 0);
-        console.log(user);
         request.post(
             'http://localhost:8081/newuser',
             { json: { publicKey: publicKey,
@@ -180,7 +173,6 @@ app.post('/choosegroup', function(req, res) {
 app.post('/upload', function(req, res) {
 
   groupchoice = req.body.selectpicker;
-  console.log(req.body.selectpicker);
 
   fs.readFile('./pages/upload.html', function(err, data){
     res.writeHead(200, {'Content-Type': 'text/html'});
@@ -248,8 +240,6 @@ app.post('/newupload', function(req, res) {
         }
         else{
           var encryptedboi = cryptojs.AES.encrypt(contents, mykey);
-          //var decryptedboi = cryptojs.AES.decrypt(encryptedboi.toString(), mykey);
-          //console.log("decryptedboi = " + decryptedboi.toString(cryptojs.enc.Utf8));
           request.post(
               'http://localhost:8081/upload',
               { json: { file: fileupload,
@@ -302,7 +292,6 @@ app.post('/created', function(req, res) {
 app.post('/getpubkey', function(req, res) {
 
   var pubkey = req.body.pubkey;
-  //console.log("pubkey = " + pubkey)
 
   var symmkey = generateKey();
   var symmEnc = encrypt(symmkey, pubkey);
@@ -352,7 +341,8 @@ app.post('/files', function(req, res) {
 
   request.post(
       'http://localhost:8081/files',
-      { json: { groupname: groupchoice2 } },
+      { json: { groupname: groupchoice2,
+                dest: 'displayfiles' } },
       function (error, response, body) {
           if (!error && response.statusCode == 200) {
               console.log(body);
@@ -534,6 +524,65 @@ app.post('/removed', function(req, res) {
 });
 
 
+
+app.post('/delfolder', function(req, res) {
+
+  browser = res;
+
+  request.post(
+      'http://localhost:8081/sendownedgroups',
+      { json: { user: user,
+                dest: 'deletefolder'} },
+      function (error, response, body) {
+          if (!error && response.statusCode == 200) {
+              console.log(body);
+          }
+      }
+  );
+});
+
+
+app.post('/deletefolder', function(req, res) {
+
+  var groups = req.body.groups;
+
+  fs.readFile('./pages/deletegroup.html', function(err, data){
+    browser.writeHead(200, {'Content-Type': 'text/html'});
+    var result = data.toString('utf-8').replace('{{data}}', groups);
+    browser.write(result);
+    return browser.end();
+  })
+
+});
+
+
+app.post('/groupdeleted', function(req, res) {
+
+  browser = res;
+
+  var group = req.body.selectpicker;
+
+  request.post(
+      'http://localhost:8081/deletegroup',
+      { json: { group: group } },
+      function (error, response, body) {
+          if (!error && response.statusCode == 200) {
+              console.log(body);
+          }
+      }
+  );
+
+
+  fs.readFile('./pages/console.html', function(err, data){
+    browser.writeHead(200, {'Content-Type': 'text/html'});
+    browser.write(data);
+    return browser.end();
+  })
+
+});
+
+
+
 app.post('/newmember', function(req, res) {
 
   var publickey = req.body.publickey;
@@ -605,6 +654,96 @@ app.post('/choosegroup2', function(req, res) {
     return browser.end();
   })
 });
+
+
+app.post('/choose3', function(req, res) {
+
+  browser = res;
+
+  request.post(
+      'http://localhost:8081/sendgroups',
+      { json: { user: user,
+                dest: 'choosegroup3'} },
+      function (error, response, body) {
+          if (!error && response.statusCode == 200) {
+              console.log(body);
+          }
+      }
+  );
+
+});
+
+
+app.post('/choosegroup3', function(req, res) {
+
+  var groups = req.body.groups;
+
+  fs.readFile('./pages/choosegroup3.html', function(err, data){
+    browser.writeHead(200, {'Content-Type': 'text/html'});
+    var result = data.toString('utf-8').replace('{{data}}', groups);
+    browser.write(result);
+    return browser.end();
+  })
+});
+
+
+app.post('/deletefiles', function(req, res) {
+
+  browser = res;
+
+  groupchoice3 = req.body.selectpicker;
+
+  request.post(
+      'http://localhost:8081/files',
+      { json: { groupname: groupchoice3,
+                dest: 'displayfiles2' } },
+      function (error, response, body) {
+          if (!error && response.statusCode == 200) {
+              console.log(body);
+          }
+      }
+  );
+
+});
+
+app.post("/displayfiles2", function(req, res) {
+
+  var filenames = req.body.filenames;
+
+  fs.readFile('./pages/delete.html', function(err, data){
+    browser.writeHead(200, {'Content-Type': 'text/html'});
+    //var json = JSON.stringify(filenames);
+    var result = data.toString('utf-8').replace('{{data}}', filenames);
+    browser.write(result);
+    return browser.end();
+  })
+});
+
+
+app.post('/deleted', function(req, res) {
+  var filename = req.body.file;
+  browser = res;
+
+  request.post(
+      'http://localhost:8081/deletefile',
+      { json: { file: filename,
+                groupname: groupchoice3 } },
+      function (error, response, body) {
+          if (!error && response.statusCode == 200) {
+              console.log(body);
+          }
+      }
+  );
+
+  fs.readFile('./pages/console.html', function(err, data){
+    browser.writeHead(200, {'Content-Type': 'text/html'});
+    browser.write(data);
+    return browser.end();
+  })
+
+});
+
+
 
 
 function generateKey() {

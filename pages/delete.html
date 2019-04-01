@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+  <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.3.1/jquery.min.js">
+  </script>
+</head>
+
+<body>
+  Delete a file from one of your groups
+  <br>
+  <form id="list" action='/deleted' method="post">
+    <input type="submit" value="Delete">
+    <br>
+  </form>
+
+  <script>
+    var files = {{data}};
+    window.onload = function() {
+      files.forEach(function(file) {
+        $("#list").append("<input type=radio name=file value="+file+">"+file+"<br>");
+      });
+    }
+  </script>
+
+</body>
+</html>
