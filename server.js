@@ -18,16 +18,6 @@ var request = require('request');
 Initialize firebase database using the json file containing
 firebase credentials.
 */
-var serviceAccount = require("./cloud-storage-app-3a043-firebase-adminsdk-j1g4l-8a92764e80.json");
-firebase.initializeApp({
-  credential: firebase.credential.cert(serviceAccount),
-  databaseURL: "https://cloud-storage-app-3a043.firebaseio.com"
-});
-var database = firebase.database()
-
-const drive = google.drive('v3'); // init google drive API
-// homeFolder is the folder on the drive to be used for storage
-const homeFolder = ["1pMAGP9xJRtEDFAImABbw9RwPoVoPQyVl"]
 
 /*
 Use config file 'auth.json' (imported above) for service
