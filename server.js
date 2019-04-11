@@ -425,26 +425,9 @@ app.post('/downloaded', function(req, res) {
                       /*
                       Once the file is downloaded, the user's version of the
                       symmetric key is retrieved and sent back to the client
+                      along with the filename and contents
                       */
-                      groupRef.once('value', function(snapshot) {
-                        if(snapshot.hasChild(group)){
-                          var users = snapshot.child(group).child("users");
-                          if(users.hasChild(user)){
-                            var symm = users.child(user).val().symmetrickey;
-                            request.post(
-                                'http://localhost:8080/decrypt',
-                                { json: { filename: file.name,
-                                          symmkey: symm } },
-                                function (error, response, body) {
-                                    if (!error && response.statusCode == 200) {
-                                        console.log(body);
-                                    }
-                                }
-                            );
-
-                          }
-                        }
-                      })
+                      sendFile(file.name, user, group);
                     }
                   );
               }
@@ -763,6 +746,37 @@ function deleteFile(name, group){
   })
 }
 
+/*
+function to send encrypted file contents back to client to
+be decrypted and written to the 'downloaded files' directory
+*/
+function sendFile(name, user, group){
+  groupRef.once('value', function(snapshot) {
+    if(snapshot.hasChild(group)){
+      var users = snapshot.child(group).child("users");
+      if(users.hasChild(user)){
+        var symm = users.child(user).val().symmetrickey;
+        fs.readFile('./downloadedfiles/' + name, 'utf8', function(err, data){
+          if(err){
+            console.log(err);
+          }
+          request.post(
+              'http://localhost:8080/decrypt',
+              { json: { filename: name,
+                        contents: data,
+                        symmkey: symm } },
+              function (error, response, body) {
+                  if (!error && response.statusCode == 200) {
+                      console.log(body);
+                  }
+              }
+          );
+
+        });
+      }
+    }
+  })
+}
 
 app.listen(8081, function () {
     console.log('Listening on http://localhost:8081');

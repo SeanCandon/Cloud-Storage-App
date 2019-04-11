@@ -9,7 +9,6 @@ var formidable = require('formidable');
 var cp = require('child_process');
 var assert = require('assert');
 var crypto = require('crypto');
-var cryptico = require('cryptico');
 var cryptojs = require('crypto-js');
 const path = require('path');
 const http = require('http');
@@ -545,6 +544,7 @@ The user is returned to the console.
 app.post('/decrypt', function(req, res) {
 
   var name = req.body.filename;
+  var data = req.body.contents;
   var symm = req.body.symmkey;
 
   fs.readFile('privateKeys.json', 'utf8', function(err, data){
@@ -558,7 +558,7 @@ app.post('/decrypt', function(req, res) {
       if(u==0){
         var pk = key.key;
         var dec =  decrypt(symm, pk);
-        decryptFile(name, dec);
+        decryptFile(name, data, dec);
       }
     });
   });
@@ -974,11 +974,11 @@ var decrypt = function(toDecrypt, privateKey) {
 
 
 /*
-function to decrypt a file. It goes to where the encrypted file is stored
-locally, uses the module Crypto-JS to decrypt the contents
-using symmetric encryption, and writes the decrypted contents back to the file
+function to decrypt a file. It uses cryptojs to decrypt the file contents using
+the user's symmetric key, and then write the decrypted contents to the file
+in the 'downloadedfiles' directory
 */
-function decryptFile(name, sym){
+function decryptFile(name, contents, sym){
 
   fs.readFile('./downloadedfiles/' + name, 'utf8', function(err, data){
     if(err){
